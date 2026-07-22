@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$GROK_PLUGIN_ROOT/scripts/ensure_vault.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$GROK_PLUGIN_ROOT/scripts/auto_capture.py\" --source UserPromptSubmit --json",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$GROK_PLUGIN_ROOT/scripts/auto_capture.py\" --source Stop --json",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

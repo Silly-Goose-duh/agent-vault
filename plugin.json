@@ -1,0 +1,13 @@
+{
+  "name": "grok-build-obsidian",
+  "version": "0.1.0",
+  "description": "Personal Grok Build vault: scaffold a local Obsidian-compatible knowledge base (me, projects, todos), auto-capture personal facts and secrets, and use them from Grok.",
+  "author": {
+    "name": "Silly-Goose-duh",
+    "url": "https://github.com/Silly-Goose-duh"
+  },
+  "homepage": "https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin",
+  "repository": "https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin",
+  "license": "MIT",
+  "keywords": ["obsidian", "vault", "memory", "todos", "personal-knowledge"]
+}
