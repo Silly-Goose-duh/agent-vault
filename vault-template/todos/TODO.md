@@ -2,12 +2,12 @@
 
 ## Active
 
-- [ ] Fill in `me/about-me.md` with a short intro about yourself
+- [ ] Add a short intro about yourself (or just chat — the watcher will catch it)
 
 ## Waiting
 
-- 
+-
 
 ## Done
 
-- 
+-

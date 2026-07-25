@@ -1,7 +1,6 @@
-"""Shared helpers for vault path resolution, secrets location, and config.
+"""Shared helpers for vault path resolution, secrets, dashboard data.
 
-Stdlib only. Works for Grok Build, Hermes, and any agent that shells out
-to these scripts.
+Stdlib only. Obsidian-free plain markdown vault for any coding agent.
 """
 
 from __future__ import annotations
@@ -13,13 +12,9 @@ import shutil
 import stat
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-
-# ---------------------------------------------------------------------------
-# Plugin / data roots
-# ---------------------------------------------------------------------------
 
 
 def plugin_root() -> Path:
@@ -27,7 +22,6 @@ def plugin_root() -> Path:
         env = os.environ.get(key)
         if env:
             return Path(env).expanduser().resolve()
-    # scripts/ is one level under plugin root
     return Path(__file__).resolve().parent.parent
 
 
@@ -38,7 +32,6 @@ def plugin_data_dir() -> Path:
             path = Path(env).expanduser().resolve()
             path.mkdir(parents=True, exist_ok=True)
             return path
-    # Hermes home fallback (profile-safe)
     hermes = os.environ.get("HERMES_HOME")
     if hermes:
         path = Path(hermes).expanduser().resolve() / "agent-vault"
@@ -70,13 +63,8 @@ def save_config(data: dict[str, Any]) -> None:
     protect_path(path)
 
 
-# ---------------------------------------------------------------------------
-# Vault path
-# ---------------------------------------------------------------------------
-
-
 def default_vault_path() -> Path:
-    # Prefer a neutral name; keep legacy "Grok Build" if it already exists.
+    # Prefer AgentVault; keep legacy folder if already created.
     legacy = (Path.home() / "Grok Build").resolve()
     modern = (Path.home() / "AgentVault").resolve()
     if legacy.is_dir():
@@ -110,13 +98,7 @@ def template_dir() -> Path:
     raise FileNotFoundError(f"vault-template not found under {root}")
 
 
-# ---------------------------------------------------------------------------
-# Deep / protected secrets path
-# ---------------------------------------------------------------------------
-
-
 def secrets_relpath() -> Path:
-    """Preferred deep location (hidden folder)."""
     return Path("me") / ".private" / "secrets.local.md"
 
 
@@ -125,7 +107,6 @@ def legacy_secrets_relpath() -> Path:
 
 
 def secrets_file(vault: Path) -> Path:
-    """Resolve secrets file: prefer deep path, fall back to legacy if present."""
     deep = vault / secrets_relpath()
     legacy = vault / legacy_secrets_relpath()
     if deep.is_file():
@@ -136,7 +117,6 @@ def secrets_file(vault: Path) -> Path:
 
 
 def migrate_secrets_to_deep(vault: Path) -> Path | None:
-    """Move legacy me/secrets.local.md → me/.private/secrets.local.md once."""
     deep = vault / secrets_relpath()
     legacy = vault / legacy_secrets_relpath()
     if deep.is_file():
@@ -148,14 +128,12 @@ def migrate_secrets_to_deep(vault: Path) -> Path | None:
     try:
         shutil.move(str(legacy), str(deep))
     except OSError:
-        # copy+leave legacy if move fails (cross-device etc.)
         deep.write_text(legacy.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
     protect_path(deep)
-    # Leave a stub pointer at legacy path (no values)
     try:
         legacy.write_text(
             "# Moved\n\n"
-            "Secrets now live at `me/.private/secrets.local.md` (gitignored, restricted).\n"
+            "Secrets now live at `me/.private/secrets.local.md` (local only).\n"
             "This stub contains **no** secret values.\n",
             encoding="utf-8",
         )
@@ -165,16 +143,14 @@ def migrate_secrets_to_deep(vault: Path) -> Path | None:
 
 
 def protect_path(path: Path) -> None:
-    """Best-effort owner-only permissions (POSIX). No-op / soft on Windows."""
     try:
         if not path.exists():
             return
         if sys.platform.startswith("win"):
-            # Windows ACL tightening is optional; disk encryption is the real layer.
             return
-        mode = stat.S_IRUSR | stat.S_IWUSR  # 0o600
+        mode = stat.S_IRUSR | stat.S_IWUSR
         if path.is_dir():
-            mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR  # 0o700
+            mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
         os.chmod(path, mode)
     except OSError:
         pass
@@ -184,7 +160,6 @@ def ensure_private_dir(vault: Path) -> Path:
     private = vault / "me" / ".private"
     private.mkdir(parents=True, exist_ok=True)
     protect_path(private)
-    # Hide from casual listing / git
     gitkeep = private / ".gitkeep"
     if not gitkeep.exists():
         gitkeep.write_text("", encoding="utf-8")
@@ -194,11 +169,6 @@ def ensure_private_dir(vault: Path) -> Path:
     return private
 
 
-# ---------------------------------------------------------------------------
-# File helpers
-# ---------------------------------------------------------------------------
-
-
 def _read_lines(path: Path) -> list[str]:
     if not path.is_file():
         return []
@@ -206,7 +176,6 @@ def _read_lines(path: Path) -> list[str]:
 
 
 def list_open_todos(vault: Path) -> list[str]:
-    """Return open todo item texts (without the checkbox prefix)."""
     items: list[str] = []
     for line in _read_lines(vault / "todos" / "TODO.md"):
         stripped = line.lstrip()
@@ -222,14 +191,15 @@ def count_open_todos(vault: Path) -> int:
 
 
 def _secret_data_rows(vault: Path) -> list[list[str]]:
-    """Parse data rows from secrets table. Cells: When, Kind, Label, Value, Source."""
     rows: list[list[str]] = []
     path = secrets_file(vault)
     for line in _read_lines(path):
         stripped = line.strip()
         if not stripped.startswith("|"):
             continue
-        if "When (UTC)" in stripped or stripped.startswith("|---"):
+        if "When (UTC)" in stripped or stripped.startswith("|---") or stripped.startswith("|---"):
+            continue
+        if re.match(r"^\|[\s\-|]+\|$", stripped):
             continue
         cells = [c.strip() for c in stripped.strip("|").split("|")]
         if len(cells) >= 4 and cells[0] and cells[0] != "When (UTC)":
@@ -242,19 +212,20 @@ def count_secret_rows(vault: Path) -> int:
 
 
 def list_secret_keys(vault: Path) -> list[dict[str, str]]:
-    """Metadata only — never includes the secret Value column."""
     out: list[dict[str, str]] = []
     for cells in _secret_data_rows(vault):
-        when = cells[0] if len(cells) > 0 else ""
-        kind = cells[1] if len(cells) > 1 else ""
-        label = cells[2] if len(cells) > 2 else ""
-        source = cells[4] if len(cells) > 4 else ""
-        out.append({"when": when, "kind": kind, "label": label, "source": source})
+        out.append(
+            {
+                "when": cells[0] if len(cells) > 0 else "",
+                "kind": cells[1] if len(cells) > 1 else "",
+                "label": cells[2] if len(cells) > 2 else "",
+                "source": cells[4] if len(cells) > 4 else "",
+            }
+        )
     return out
 
 
 def parse_about_simple(vault: Path) -> list[str]:
-    """Non-placeholder bullets from about-me.md and preferences.md."""
     facts: list[str] = []
     for rel in ("me/about-me.md", "me/preferences.md"):
         section = ""
@@ -268,15 +239,11 @@ def parse_about_simple(vault: Path) -> list[str]:
             body = stripped[2:].strip()
             if not body or body.startswith("("):
                 continue
-            if section:
-                facts.append(f"{section}: {body}")
-            else:
-                facts.append(body)
+            facts.append(f"{section}: {body}" if section else body)
     return facts
 
 
 def list_reminders(vault: Path) -> list[str]:
-    """Open reminder bullets from me/reminders.md."""
     path = vault / "me" / "reminders.md"
     items: list[str] = []
     for line in _read_lines(path):
@@ -292,10 +259,47 @@ def list_reminders(vault: Path) -> list[str]:
     return items
 
 
+def list_projects(vault: Path, limit: int = 12) -> list[str]:
+    """Project names from projects/_index.md table + note titles."""
+    names: list[str] = []
+    seen: set[str] = set()
+    index = vault / "projects" / "_index.md"
+    for line in _read_lines(index):
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        if "Project" in stripped and "Status" in stripped:
+            continue
+        if re.match(r"^\|[\s\-|]+\|$", stripped):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if not cells:
+            continue
+        name = cells[0]
+        if not name or name.startswith("(") or name.lower() == "project":
+            continue
+        low = name.lower()
+        if low in seen:
+            continue
+        seen.add(low)
+        status = cells[1] if len(cells) > 1 else ""
+        names.append(f"{name}" + (f" · {status}" if status else ""))
+    proj_dir = vault / "projects"
+    if proj_dir.is_dir():
+        for p in sorted(proj_dir.glob("*.md")):
+            if p.name.startswith("_"):
+                continue
+            title = p.stem.replace("-", " ").replace("_", " ").strip()
+            if title.lower() in seen:
+                continue
+            seen.add(title.lower())
+            names.append(title)
+    return names[:limit]
+
+
 def format_box(lines: list[str], min_width: int = 40) -> str:
-    """ASCII box for reminder notes."""
     if not lines:
-        lines = ["(no reminders yet — tell me what to remember)"]
+        lines = ["(empty)"]
     width = max(min_width, max(len(ln) for ln in lines) + 2)
     top = "┌" + "─" * width + "┐"
     bot = "└" + "─" * width + "┘"
@@ -303,11 +307,45 @@ def format_box(lines: list[str], min_width: int = 40) -> str:
     return "\n".join([top, *body, bot])
 
 
+def append_activity(vault: Path, kind: str, summary: str) -> None:
+    """Append one quiet activity line (no secret values)."""
+    sessions = vault / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path = sessions / f"activity-{day}.log"
+    when = datetime.now(timezone.utc).strftime("%H:%M:%SZ")
+    safe = summary.replace("\n", " ").strip()[:160]
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"{when}\t{kind}\t{safe}\n")
+
+
+def recent_activity(vault: Path, limit: int = 8) -> list[str]:
+    sessions = vault / "sessions"
+    if not sessions.is_dir():
+        return []
+    files = sorted(sessions.glob("activity-*.log"), reverse=True)
+    lines: list[str] = []
+    for fp in files:
+        for line in reversed(_read_lines(fp)):
+            if not line.strip():
+                continue
+            parts = line.split("\t", 2)
+            if len(parts) >= 3:
+                lines.append(f"{parts[0]} · {parts[1]} · {parts[2]}")
+            else:
+                lines.append(line.strip())
+            if len(lines) >= limit:
+                return lines
+    return lines
+
+
 def brief_context_for_agent(vault: Path, max_facts: int = 12) -> str:
-    """Compact non-secret context string to inject into agent turns."""
     if not vault.is_dir():
         return ""
-    parts: list[str] = [f"[agent-vault] path={vault}"]
+    parts: list[str] = [
+        "[agent-vault] Quiet personal memory is ON. "
+        f"path={vault}. Never print secret values."
+    ]
     about = parse_about_simple(vault)[:max_facts]
     if about:
         parts.append("Personal facts:")
@@ -320,69 +358,45 @@ def brief_context_for_agent(vault: Path, max_facts: int = 12) -> str:
     if rems:
         parts.append("Reminders:")
         parts.extend(f"- {r}" for r in rems)
+    projs = list_projects(vault, limit=6)
+    if projs:
+        parts.append("Projects:")
+        parts.extend(f"- {p}" for p in projs)
     n = count_secret_rows(vault)
     if n:
-        parts.append(f"Secrets stored: {n} (values never injected; use vault keys list)")
+        parts.append(f"Sealed keys stored: {n} (values never injected; /vaultkeys for labels)")
     if len(parts) == 1:
-        return parts[0] + " (empty — capture facts as the user shares them)"
+        return parts[0] + " Vault empty — capture durable facts silently as user shares them."
     return "\n".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# GitHub highlights (optional dashboard)
-# ---------------------------------------------------------------------------
-
-
-_GITHUB_SKIP_NAMES = frozenset(
-    {
-        "skills-introduction-to-github",
-        "developer-roadmap",
-        "React-stuffss",
-        "Leetcode",
-        "Leet-code",
-        "portfolio-template",
-        "fossmce-portfolios",
-        "Odin-project",
-        "Blog.github.io",
-        "blog-claude.github.io",
-        "figma-plugin-dev-intro",
-    }
-)
-_GITHUB_SKIP_DESC_PREFIXES = (
-    "my clone repository",
-    "config files for my github profile",
-    "just some solutions",
-)
-
-
 def _is_highlight_repo(item: dict[str, Any], login: str | None) -> bool:
-    """Original, intentional projects — not forks, clones, or profile shells."""
     name = str(item.get("name") or "")
-    if not name:
-        return False
-    if item.get("isFork"):
+    if not name or item.get("isFork"):
         return False
     if login and name.lower() == login.lower():
         return False
-    if name in _GITHUB_SKIP_NAMES:
+    skip = {
+        "skills-introduction-to-github",
+        "developer-roadmap",
+        "portfolio-template",
+        "Leetcode",
+        "Leet-code",
+    }
+    if name in skip:
         return False
     desc = (item.get("description") or "").strip()
     low = desc.lower()
-    if any(low.startswith(p) for p in _GITHUB_SKIP_DESC_PREFIXES):
+    if low.startswith(("my clone repository", "config files for my github profile")):
         return False
     lang = item.get("primaryLanguage")
     has_lang = bool(lang and (lang.get("name") if isinstance(lang, dict) else lang))
-    if len(desc) >= 20:
-        return True
-    if has_lang and len(desc) >= 8:
-        return True
-    if has_lang and not desc:
+    if len(desc) >= 20 or (has_lang and len(desc) >= 8) or (has_lang and not desc):
         return True
     return False
 
 
 def list_github_repos(limit: int = 50, highlight_limit: int = 6) -> list[str]:
-    """Best/highlight repo names only via `gh` (not the full dump)."""
     gh = shutil.which("gh")
     if not gh:
         return []
@@ -412,13 +426,11 @@ def list_github_repos(limit: int = 50, highlight_limit: int = 6) -> list[str]:
         return []
     if not isinstance(data, list):
         return []
-
-    login: str | None = None
+    login = None
     if data and isinstance(data[0], dict):
         owner = data[0].get("owner")
         if isinstance(owner, dict):
             login = owner.get("login")
-
     candidates: list[tuple[int, str, str]] = []
     for item in data:
         if not isinstance(item, dict) or not _is_highlight_repo(item, login):
@@ -430,13 +442,107 @@ def list_github_repos(limit: int = 50, highlight_limit: int = 6) -> list[str]:
         recency = 0
         if len(updated) >= 7:
             try:
-                year = int(updated[0:4])
-                month = int(updated[5:7])
-                recency = year * 12 + month
+                recency = int(updated[0:4]) * 12 + int(updated[5:7])
             except ValueError:
                 recency = 0
-        score = recency * 50 + stars * 20 + (150 if len(desc) >= 20 else 0) + min(len(desc), 40)
+        score = recency * 50 + stars * 20 + (150 if len(desc) >= 20 else 0)
         candidates.append((score, updated, name))
-
     candidates.sort(key=lambda t: (t[0], t[1]), reverse=True)
-    return [name for _, _, name in candidates[: max(1, highlight_limit)]]
+    return [n for _, _, n in candidates[: max(1, highlight_limit)]]
+
+
+def render_creative_dashboard(
+    vault: Path,
+    *,
+    include_github: bool = True,
+) -> str:
+    """Full creative /vault dashboard text (never includes secret values)."""
+    todos = list_open_todos(vault)
+    about = parse_about_simple(vault)
+    reminders = list_reminders(vault)
+    projects = list_projects(vault)
+    keys_n = count_secret_rows(vault)
+    activity = recent_activity(vault, limit=6)
+    gh = list_github_repos() if include_github else []
+    sec = secrets_file(vault)
+
+    W = 58
+
+    def rule(ch: str = "═") -> str:
+        return ch * W
+
+    def row(text: str) -> str:
+        t = text[: W - 2]
+        return "║ " + t.ljust(W - 2) + "║"
+
+    def blank() -> str:
+        return "║" + " " * W + "║"
+
+    def section(title: str) -> list[str]:
+        return [row(f"▸ {title}"), row("─" * (W - 4))]
+
+    sealed = "●" * min(keys_n, 8) + ("○" * max(0, 4 - keys_n) if keys_n < 4 else "")
+    if keys_n == 0:
+        sealed = "○○○○"
+
+    lines = [
+        "╔" + rule() + "╗",
+        row("◆  AGENT VAULT"),
+        row("quiet memory · local · locked"),
+        "╠" + rule() + "╣",
+        row(f"path  {vault}"),
+        row(f"seal  {sec.name}  (values never shown)"),
+        blank(),
+    ]
+    lines += section("YOU")
+    if about:
+        for a in about[:10]:
+            lines.append(row(f"· {a}"))
+    else:
+        lines.append(row("· (nothing yet — keep chatting normally)"))
+    lines.append(blank())
+    lines += section(f"TODOS  ({len(todos)} open)")
+    if todos:
+        for t in todos[:8]:
+            lines.append(row(f"☐  {t}"))
+        if len(todos) > 8:
+            lines.append(row(f"… +{len(todos) - 8} more"))
+    else:
+        lines.append(row("☐  (inbox zero)"))
+    lines.append(blank())
+    lines += section(f"REMINDERS  ({len(reminders)})")
+    if reminders:
+        for r in reminders[:6]:
+            lines.append(row(f"✧  {r}"))
+    else:
+        lines.append(row("✧  (none)"))
+    lines.append(blank())
+    lines += section(f"PROJECTS  ({len(projects)})")
+    if projects:
+        for p in projects[:8]:
+            lines.append(row(f"◈  {p}"))
+    else:
+        lines.append(row("◈  (none indexed)"))
+    lines.append(blank())
+    if include_github:
+        lines += section("GITHUB HIGHLIGHTS")
+        if gh:
+            for name in gh:
+                lines.append(row(f"⌥  {name}"))
+        else:
+            lines.append(row("⌥  (gh unavailable or none)"))
+        lines.append(blank())
+    lines += section(f"SEALED KEYS  {sealed}  {keys_n}")
+    lines.append(row("labels only via /vaultkeys — never values here"))
+    lines.append(blank())
+    lines += section("RECENT CAPTURES")
+    if activity:
+        for a in activity:
+            lines.append(row(f"· {a}"))
+    else:
+        lines.append(row("· (watcher idle — no captures yet)"))
+    lines.append(blank())
+    lines.append(row("cmds  /vaultkeys  /vault-remember  /vault-todo  /vault-preview"))
+    lines.append(row("tip   just work — the quiet watcher saves durable details"))
+    lines.append("╚" + rule() + "╝")
+    return "\n".join(lines)

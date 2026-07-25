@@ -2,7 +2,7 @@
 
 ## Identity
 
-- (name, role, location — filled by you or auto-capture)
+- (name, role, location — filled by auto-capture or you)
 
 ## Preferences
 
@@ -10,8 +10,8 @@
 
 ## Constraints
 
-- (things Grok should never do, hard limits)
+- (hard limits the agent must respect)
 
 ## Notes
 
-- 
+-

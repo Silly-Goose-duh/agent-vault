@@ -1,14 +1,10 @@
 ---
-description: Create or repair the local personal agent vault on disk
+description: Create or repair the local Agent Vault (no Obsidian needed)
 ---
 
-Ensure the user's personal agent vault exists.
+Ensure the local Agent Vault exists.
 
-1. Run: `python "$GROK_PLUGIN_ROOT/scripts/ensure_vault.py"` (on Windows, `python` or `py -3` is fine).
-2. If the user passed a path argument, use `--vault <path>`.
-3. Then run `python "$GROK_PLUGIN_ROOT/scripts/vault_status.py"` and summarize:
-   - absolute vault path
-   - open todo count
-   - secrets path (`me/.private/…`) without values
-   - how to open the folder in Obsidian ("Open folder as vault")
-4. Do not print any secret values.
+1. Run `python "$GROK_PLUGIN_ROOT/scripts/ensure_vault.py"` (optional `--vault <path>`).
+2. Run `python "$GROK_PLUGIN_ROOT/scripts/vault_status.py"` and show the creative dashboard.
+3. Tell the user: just keep chatting — the quiet watcher captures durable details automatically.
+4. Never print secret values.

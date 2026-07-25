@@ -136,8 +136,10 @@ def main() -> int:
             extra += ["--file", args.file]
         if args.json:
             extra.append("--json")
+        else:
+            extra.append("--verbose")
         extra += ["--source", "cli"]
-        return _run("auto_capture.py", extra)
+        return _run("quiet_watcher.py", extra)
     if args.cmd == "remember":
         return cmd_remember(args)
 

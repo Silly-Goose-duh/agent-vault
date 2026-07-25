@@ -1,13 +1,13 @@
-"""Hermes plugin: personal agent vault with auto-capture + slash commands.
+"""Hermes plugin: Agent Vault — quiet personal memory for coding agents.
 
-Shares the same markdown vault and Python scripts used by the Grok Build
-plugin surface in this repo. Install:
+Obsidian-free plain-markdown vault. Install once, work normally; a local
+quiet watcher scans each user prompt for durable facts + secrets.
 
     hermes plugins install Silly-Goose-duh/grok-build-obsidian-plugin --enable
 
 Hooks:
-  - on_session_start → ensure vault exists
-  - pre_llm_call    → scan user message for facts/secrets; inject brief non-secret context on first turn
+  - on_session_start → ensure vault
+  - pre_llm_call    → quiet_watcher on user message; first-turn non-secret context
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 _PLUGIN_DIR = Path(__file__).resolve().parent
 _SCRIPTS = _PLUGIN_DIR / "scripts"
 
-# Make scripts importable
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
@@ -31,12 +30,13 @@ if str(_SCRIPTS) not in sys.path:
 def _import_lib():
     import auto_capture  # type: ignore
     import lib_vault  # type: ignore
+    import quiet_watcher  # type: ignore
 
-    return lib_vault, auto_capture
+    return lib_vault, auto_capture, quiet_watcher
 
 
 def _ensure_vault() -> Path:
-    lib_vault, _ = _import_lib()
+    lib_vault, _, _ = _import_lib()
     vault = lib_vault.resolve_vault_path()
     ensure = _SCRIPTS / "ensure_vault.py"
     if not vault.is_dir() or not (vault / "me").is_dir():
@@ -64,18 +64,17 @@ def _on_pre_llm_call(
     is_first_turn: bool = False,
     **_: Any,
 ) -> Optional[dict]:
-    """Capture from user text; inject brief vault context on first turn only."""
+    """Silent capture every prompt; inject brief non-secret context on first turn."""
     context_out = ""
     try:
-        lib_vault, auto_capture = _import_lib()
+        lib_vault, _ac, quiet_watcher = _import_lib()
         vault = _ensure_vault()
         text = user_message if isinstance(user_message, str) else ""
         if text.strip():
-            # Fail-open capture
             try:
-                auto_capture.process_text(text, vault, source="hermes:pre_llm")
+                quiet_watcher.watch(text, vault, source="hermes:pre_llm")
             except Exception as exc:
-                logger.debug("auto_capture failed: %s", exc)
+                logger.debug("quiet_watcher failed: %s", exc)
         if is_first_turn:
             try:
                 context_out = lib_vault.brief_context_for_agent(vault)
@@ -107,16 +106,17 @@ def _run_script(name: str, extra: list[str] | None = None) -> str:
 
 def _slash_vault(raw_args: str) -> Optional[str]:
     args = raw_args.strip().split()
-    if not args or args[0] in {"status", "dash", "dashboard"}:
+    if not args or args[0] in {"status", "dash", "dashboard", "show"}:
         _ensure_vault()
-        return _run_script("vault_status.py", ["--no-github"] if "--no-github" in args else [])
+        extra = ["--no-github"] if "--no-github" in args else []
+        return _run_script("vault_status.py", extra)
     sub = args[0]
     if sub in {"init", "repair"}:
         return _run_script("ensure_vault.py")
     if sub in {"keys", "key"}:
         return _run_script("vault_keys.py")
     if sub == "path":
-        lib_vault, _ = _import_lib()
+        lib_vault, _, _ = _import_lib()
         return str(lib_vault.resolve_vault_path())
     if sub == "context":
         return _run_script("vault_cli.py", ["context"])
@@ -125,31 +125,33 @@ def _slash_vault(raw_args: str) -> Optional[str]:
         if not text:
             return "Usage: /vault remember <fact or secret text>"
         return _run_script("vault_cli.py", ["remember", "--text", text])
-    if sub == "capture":
+    if sub == "watch":
         text = " ".join(args[1:]).strip()
         if not text:
-            return "Usage: /vault capture <text>"
-        return _run_script("auto_capture.py", ["--text", text, "--source", "hermes:/vault"])
+            return "Usage: /vault watch <text>"
+        return _run_script(
+            "quiet_watcher.py",
+            ["--text", text, "--source", "hermes:/vault", "--verbose"],
+        )
     if sub in {"help", "-h", "--help"}:
         return _HELP
     return f"Unknown subcommand: {sub}\n\n{_HELP}"
 
 
 _HELP = """\
-/vault — personal agent vault
+/vault — Agent Vault (quiet personal memory)
 
 Subcommands:
-  (none)|status   Dashboard (todos, reminders, personal facts, key count)
-  init            Create / repair vault on disk
-  keys            List key labels only (never values)
-  path            Print vault path
-  context         Non-secret brief used by the agent
+  (none)|status   Creative dashboard (no secret values)
+  init            Create / repair local vault
+  keys            Key labels only
+  path            Vault path
+  context         Non-secret brief
   remember <text> Save fact / auto-detect secret
-  capture <text>  Force heuristic scan
+  watch <text>    Run quiet watcher once (verbose)
 
-Also: /vaultkeys (alias for keys)
-
-Vault is Obsidian-compatible markdown. Secrets live in me/.private/ (gitignored).
+Just chat normally — the quiet watcher runs on every prompt.
+Secrets live in me/.private/ (never shown on the dashboard).
 """
 
 
@@ -163,10 +165,10 @@ def register(ctx) -> None:
     ctx.register_command(
         "vault",
         handler=_slash_vault,
-        description="Personal vault dashboard, capture, and keys (values never shown).",
+        description="Agent Vault creative dashboard + quiet memory controls.",
     )
     ctx.register_command(
         "vaultkeys",
         handler=_slash_vaultkeys,
-        description="List stored vault key labels only (never values).",
+        description="List sealed key labels only (never values).",
     )

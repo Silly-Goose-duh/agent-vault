@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$GROK_PLUGIN_ROOT/scripts/auto_capture.py\" --source UserPromptSubmit --json",
+            "command": "python \"$GROK_PLUGIN_ROOT/scripts/quiet_watcher.py\" --source UserPromptSubmit --json",
             "timeout": 15
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$GROK_PLUGIN_ROOT/scripts/auto_capture.py\" --source Stop --json",
+            "command": "python \"$GROK_PLUGIN_ROOT/scripts/quiet_watcher.py\" --source Stop --json",
             "timeout": 15
           }
         ]

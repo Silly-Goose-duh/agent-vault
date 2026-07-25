@@ -1,35 +1,31 @@
 # Agent Vault Rules
 
-This vault is the user's personal knowledge base for coding-agent sessions
-(Grok Build, Hermes, Claude Code, Codex, etc.).
+Plain-markdown personal memory for coding agents. **No Obsidian required.**
+
+## Quiet watcher (always on)
+
+After every user prompt, a local watcher scans for durable details:
+
+- personal facts → `me/about-me.md` / `me/preferences.md`
+- reminders → `me/reminders.md`
+- secrets (keys, tokens, passwords) → `me/.private/secrets.local.md`
+
+Do **not** narrate captures unless the user asks. Never echo full secret values — mask as `prefix…****`.
 
 ## Always
 
 - Read `me/about-me.md` when personal context matters.
-- Read `todos/TODO.md` when asked about tasks or starting work.
-- After important decisions, update the relevant note (do not only chat).
-- Keep personal facts in `me/`, project status in `projects/`, work items in `todos/TODO.md`, reminders in `me/reminders.md`.
-- Prefer checklist format: `- [ ]` open, `- [x]` done.
-- On `/vault`, list todos, GitHub highlight names only, reminders in a box, simple personal info; never print secret values (use `/vaultkeys` for labels only).
-
-## Auto-capture
-
-When the user shares durable facts about themselves (name, role, timezone, preferences, constraints), merge them into `me/about-me.md` under the right heading. Do not duplicate existing lines.
-
-When the user shares **secrets** (API keys, tokens, passwords, private IDs, connection strings):
-
-1. Append them to `me/.private/secrets.local.md` (create via ensure_vault if missing).
-2. **Never** repeat the full secret back in chat after saving; mask as `prefix…****`.
-3. Never commit secrets or put them in git-tracked notes.
-4. Prefer the deep path `me/.private/` — not the vault root.
+- Read `todos/TODO.md` for open work.
+- After important decisions, update the relevant note (not only chat).
+- Keep secrets only under `me/.private/`.
+- `/vault` shows the creative dashboard (no secret values). `/vaultkeys` = labels only.
 
 ## Todos
 
-- Format open items as `- [ ] ...`
-- Completed as `- [x] ...`
-- When finishing work, mark todos done in `todos/TODO.md`.
+- `- [ ]` open · `- [x]` done
+- Mark done in `todos/TODO.md` when finishing work.
 
 ## Projects
 
-- One note per project under `projects/<slug>.md`
-- Keep `projects/_index.md` updated with status links
+- Notes under `projects/<slug>.md`
+- Keep `projects/_index.md` current

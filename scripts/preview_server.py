@@ -41,7 +41,7 @@ def render_index(vault: Path) -> str:
         items.append(f'<li><a href="/note?path={html.escape(rel)}">{html.escape(rel)}</a></li>')
     body = "\n".join(items) or "<li><em>No notes yet</em></li>"
     return f"""<!doctype html>
-<html><head><meta charset="utf-8"><title>Agent Vault</title>
+<html><head><meta charset="utf-8"><title>Agent Vault · local</title>
 <style>
 body{{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;background:#0f1115;color:#e6e6e6}}
 a{{color:#7cb7ff}} h1{{font-size:1.4rem}} pre{{white-space:pre-wrap;background:#1a1d24;padding:1rem;border-radius:8px}}

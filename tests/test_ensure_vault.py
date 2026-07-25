@@ -101,7 +101,7 @@ class EnsureVaultTests(unittest.TestCase):
             self.assertIn("Jordan Lee", ctx)
             self.assertIn("Ship plugin", ctx)
             self.assertNotIn("SUPER_SECRET_VALUE_XYZ", ctx)
-            self.assertIn("Secrets stored: 1", ctx)
+            self.assertIn("Sealed keys stored: 1", ctx)
 
 
 if __name__ == "__main__":

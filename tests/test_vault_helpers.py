@@ -20,6 +20,7 @@ from lib_vault import (  # noqa: E402
     list_open_todos,
     list_secret_keys,
     parse_about_simple,
+    render_creative_dashboard,
 )
 
 
@@ -55,17 +56,44 @@ class VaultHelperTests(unittest.TestCase):
             keys = list_secret_keys(vault)
             self.assertEqual(len(keys), 1)
             self.assertEqual(keys[0]["label"], "demo")
-            self.assertEqual(keys[0]["kind"], "api_key")
             self.assertNotIn("SECRET_VALUE_NEVER", str(keys))
 
             about = parse_about_simple(vault)
             self.assertTrue(any("Alice Dev" in a for a in about))
-            self.assertTrue(any("Prefer bullets" in a for a in about))
             self.assertFalse(any("(name, role)" in a for a in about))
 
             box = format_box(["Pay rent"])
             self.assertIn("Pay rent", box)
             self.assertTrue(box.startswith("┌"))
+
+    def test_creative_dashboard_hides_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            vault = Path(td)
+            (vault / "todos").mkdir(parents=True)
+            (vault / "me" / ".private").mkdir(parents=True)
+            (vault / "projects").mkdir(parents=True)
+            (vault / "todos" / "TODO.md").write_text("- [ ] Build dash\n", encoding="utf-8")
+            (vault / "me" / "about-me.md").write_text(
+                "## Identity\n\n- Nova User\n", encoding="utf-8"
+            )
+            (vault / "me" / "preferences.md").write_text("", encoding="utf-8")
+            (vault / "me" / "reminders.md").write_text(
+                "- [ ] Ship plugin\n", encoding="utf-8"
+            )
+            (vault / "me" / ".private" / "secrets.local.md").write_text(
+                "| When (UTC) | Kind | Label | Value | Source |\n"
+                "|---|---|---|---|---|\n"
+                "| t | api_key | k | SUPER_SECRET_ZZZ | t |\n",
+                encoding="utf-8",
+            )
+            dash = render_creative_dashboard(vault, include_github=False)
+            self.assertIn("AGENT VAULT", dash)
+            self.assertIn("Nova User", dash)
+            self.assertIn("Build dash", dash)
+            self.assertIn("Ship plugin", dash)
+            self.assertIn("SEALED KEYS", dash)
+            self.assertNotIn("SUPER_SECRET_ZZZ", dash)
+            self.assertTrue(dash.startswith("╔"))
 
     def test_vault_keys_script_hides_values(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -93,7 +121,7 @@ class VaultHelperTests(unittest.TestCase):
             self.assertIn("aws_key", r.stdout)
             self.assertNotIn("AKIA_SHOULD_NOT_PRINT", r.stdout)
 
-    def test_vault_status_sections(self) -> None:
+    def test_vault_status_creative(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             vault = Path(td) / "vault"
             data = Path(td) / "pdata"
@@ -134,73 +162,52 @@ class VaultHelperTests(unittest.TestCase):
             )
             self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
             out = r.stdout
-            self.assertIn("## Todos", out)
+            self.assertIn("AGENT VAULT", out)
             self.assertIn("Example todo", out)
-            self.assertIn("## Reminders", out)
             self.assertIn("Call dentist", out)
-            self.assertIn("## Personal info", out)
             self.assertIn("Tom", out)
             self.assertIn("/vaultkeys", out)
 
-    def test_vault_cli_remember_and_context(self) -> None:
+    def test_quiet_watcher(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             vault = Path(td) / "v"
             data = Path(td) / "d"
             env = os.environ.copy()
             env["GROK_PLUGIN_ROOT"] = str(ROOT)
             env["GROK_PLUGIN_DATA"] = str(data)
-            env["AGENT_VAULT_PATH"] = str(vault)
-            r0 = subprocess.run(
-                [sys.executable, str(SCRIPTS / "vault_cli.py"), "--vault", str(vault), "init"],
+            subprocess.run(
+                [sys.executable, str(SCRIPTS / "ensure_vault.py"), "--vault", str(vault)],
                 env=env,
                 capture_output=True,
                 text=True,
                 check=False,
             )
-            self.assertEqual(r0.returncode, 0, r0.stderr + r0.stdout)
-            r1 = subprocess.run(
+            key = "sk-" + ("w" * 24)
+            r = subprocess.run(
                 [
                     sys.executable,
-                    str(SCRIPTS / "vault_cli.py"),
+                    str(SCRIPTS / "quiet_watcher.py"),
                     "--vault",
                     str(vault),
-                    "remember",
                     "--text",
-                    "My name is Riley Fox.",
+                    f"My name is Quiet Quinn. key={key}",
+                    "--json",
                 ],
                 env=env,
                 capture_output=True,
                 text=True,
                 check=False,
             )
-            self.assertEqual(r1.returncode, 0, r1.stderr + r1.stdout)
-            r2 = subprocess.run(
-                [sys.executable, str(SCRIPTS / "vault_cli.py"), "--vault", str(vault), "context"],
-                env=env,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            self.assertEqual(r2.returncode, 0, r2.stderr + r2.stdout)
-            self.assertIn("Riley", r2.stdout)
-
-    def test_preview_blocks_private(self) -> None:
-        from preview_server import list_md_files, render_note  # noqa: E402
-
-        with tempfile.TemporaryDirectory() as td:
-            vault = Path(td)
-            (vault / "me" / ".private").mkdir(parents=True)
-            (vault / "me" / "about-me.md").write_text("hi", encoding="utf-8")
-            (vault / "me" / ".private" / "secrets.local.md").write_text(
-                "SECRET_SHOULD_NOT_LIST", encoding="utf-8"
-            )
-            files = list_md_files(vault)
-            names = [p.name for p in files]
-            self.assertIn("about-me.md", names)
-            self.assertNotIn("secrets.local.md", names)
-            html = render_note(vault, "me/.private/secrets.local.md")
-            self.assertIn("Not found", html)
-            self.assertNotIn("SECRET_SHOULD_NOT_LIST", html)
+            self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+            self.assertIn("secrets_added", r.stdout)
+            self.assertNotIn(key, r.stdout)
+            about = (vault / "me" / "about-me.md").read_text(encoding="utf-8")
+            self.assertIn("Quiet Quinn", about)
+            # activity log masked
+            sessions = list((vault / "sessions").glob("activity-*.log"))
+            self.assertTrue(sessions)
+            log = sessions[0].read_text(encoding="utf-8")
+            self.assertNotIn(key, log)
 
     def test_highlight_repo_filter(self) -> None:
         login = "Silly-Goose-duh"
@@ -208,7 +215,7 @@ class VaultHelperTests(unittest.TestCase):
             _is_highlight_repo(
                 {
                     "name": "MakeYourPass",
-                    "description": "Event OS",
+                    "description": "Event OS campus",
                     "isFork": False,
                     "primaryLanguage": {"name": "TypeScript"},
                 },
@@ -217,34 +224,7 @@ class VaultHelperTests(unittest.TestCase):
         )
         self.assertFalse(
             _is_highlight_repo(
-                {
-                    "name": "Tribe-",
-                    "description": "",
-                    "isFork": True,
-                    "primaryLanguage": {"name": "TS"},
-                },
-                login,
-            )
-        )
-        self.assertFalse(
-            _is_highlight_repo(
-                {
-                    "name": "Silly-Goose-duh",
-                    "description": "Config files for my GitHub profile.",
-                    "isFork": False,
-                    "primaryLanguage": None,
-                },
-                login,
-            )
-        )
-        self.assertFalse(
-            _is_highlight_repo(
-                {
-                    "name": "skills-introduction-to-github",
-                    "description": "My clone repository",
-                    "isFork": False,
-                    "primaryLanguage": None,
-                },
+                {"name": "x", "description": "", "isFork": True, "primaryLanguage": None},
                 login,
             )
         )

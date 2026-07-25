@@ -1,74 +1,56 @@
 ---
-name: grok-vault
+name: agent-vault
 description: >-
-  Manage the local personal agent vault (Obsidian-compatible markdown):
-  about-me, projects, todos, reminders, and deep local secrets capture. Use when the
-  user mentions vault, Obsidian, todos, remember this about me, personal notes,
-  API keys/tokens to store, or /vault commands.
+  Quiet personal vault for coding agents (no Obsidian). Auto-captures facts and
+  secrets from chat into a local markdown vault; /vault creative dashboard.
+  Use when user mentions vault, remember this, personal details, API keys, or /vault.
 ---
 
 # Agent Vault Skill
 
-## Vault location
+## Idea
 
-1. Prefer env `AGENT_VAULT_PATH` / `GROK_VAULT_PATH` / `HERMES_VAULT_PATH` if set.
-2. Else read plugin data `config.json` → `vault_path`.
-3. Else existing `~/Grok Build`, else `~/AgentVault`.
+Install once → work normally. A **quiet watcher** (local script hooks + this skill)
+checks each prompt for durable details and sealed secrets. No Obsidian app needed —
+just folders of markdown under `~/AgentVault` (or legacy `~/Grok Build`).
 
-If unsure, run:
+## Paths
+
+1. `AGENT_VAULT_PATH` / `GROK_VAULT_PATH` / `HERMES_VAULT_PATH`
+2. plugin `config.json` → `vault_path`
+3. existing `~/Grok Build` else `~/AgentVault`
 
 ```bash
 python "$GROK_PLUGIN_ROOT/scripts/ensure_vault.py"
-python "$GROK_PLUGIN_ROOT/scripts/vault_status.py"
-# or cross-agent:
-python "$GROK_PLUGIN_ROOT/scripts/vault_cli.py" status
+python "$GROK_PLUGIN_ROOT/scripts/quiet_watcher.py" --text "..." --source skill
+python "$GROK_PLUGIN_ROOT/scripts/vault_status.py"   # creative dashboard
 ```
 
 ## Layout
 
-| Path | Purpose |
-|------|---------|
-| `me/about-me.md` | Non-secret personal facts |
-| `me/preferences.md` | Style / workflow prefs |
-| `me/reminders.md` | Short self-reminders (box on `/vault`) |
-| `me/.private/secrets.local.md` | **Deep + local only** API keys, tokens, passwords |
-| `projects/` | Project notes + `_index.md` |
-| `todos/TODO.md` | Source of truth for open work |
-| `AGENTS.md` | Standing rules for this vault |
-
-## Auto-capture rules
-
-Whenever the user shares durable personal context, **update** `me/about-me.md` (merge under headings; no duplicate bullets).
-
-Whenever the user asks to be **reminded** of something, append `- [ ] …` to `me/reminders.md`.
-
-Whenever the user pastes secrets (API keys, tokens, passwords, private IDs, connection strings):
-
-1. Append a row to `me/.private/secrets.local.md`.
-2. Reply with **masked** values only (`sk-…****`).
-3. Never put secrets in git-tracked notes or chat logs if you can avoid it.
-
-Hooks also run `scripts/auto_capture.py` (Grok) / Hermes `pre_llm_call` as a backup.
-
-## When needed (recall)
-
-Before personalizing work, read `me/about-me.md` + `todos/TODO.md`, or run:
-
-```bash
-python scripts/vault_cli.py context
+```text
+AgentVault/
+  AGENTS.md
+  me/about-me.md
+  me/preferences.md
+  me/reminders.md
+  me/.private/secrets.local.md   # deep + local only
+  projects/
+  todos/TODO.md
+  sessions/activity-*.log        # masked capture log
 ```
+
+## Quiet behavior
+
+- Do not interrupt the user's coding flow.
+- Merge facts under headings; no duplicate bullets.
+- Secrets → `.private` only; reply masked if you must acknowledge.
+- Hooks run `quiet_watcher.py` automatically (Grok + Hermes).
+
+## /vault
+
+Always run `vault_status.py` and show the full creative frame. Never values from secrets.
 
 ## Commands
 
-- `/vault-init` — ensure vault exists
-- `/vault` — dashboard: todos, highlight GitHub repos, reminders box, personal info, key **count**
-- `/vaultkeys` — list stored keys (**When / Kind / Label / Source** only — never values)
-- `/vault-todo` — list / work open todos
-- `/vault-remember` — save a personal fact, reminder, or secret (masked)
-- `/vault-preview` — local HTTP preview (secrets + `.private` never served)
-
-## Security
-
-- `/vault` and `/vaultkeys` must **never** print secret values.
-- Values live only under `me/.private/` on disk.
-- Prefer full-disk encryption. Not a password manager.
+- `/vault` dashboard · `/vaultkeys` labels · `/vault-remember` · `/vault-todo` · `/vault-init` · `/vault-preview`

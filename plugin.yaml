@@ -1,8 +1,9 @@
 name: agent-vault
-version: 0.2.0
+version: 0.3.0
 description: >-
-  Personal vault for coding agents: Obsidian-compatible markdown (me/, projects/, todos/),
-  auto-detect facts and secrets from chats, deep protected local storage, inject context when needed.
+  Agent Vault — quiet personal memory for coding agents. No Obsidian required.
+  After every prompt a local watcher seals secrets and facts into a markdown vault;
+  /vault shows a creative dashboard (values never shown).
 author: Silly-Goose-duh
 homepage: https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin
 provides_hooks:
