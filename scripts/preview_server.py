@@ -23,12 +23,13 @@ def list_md_files(vault: Path) -> list[Path]:
             continue
         if p.suffix.lower() not in {".md", ".markdown", ".txt"}:
             continue
-        if "secrets.local.md" in p.name:
+        if "secrets.local" in p.name.lower():
             continue  # never serve secrets over HTTP
-        if any(part.startswith(".") for part in p.relative_to(vault).parts if part != "."):
-            # allow .obsidian skip
-            if ".obsidian" in p.parts:
-                continue
+        rel_parts = p.relative_to(vault).parts
+        if ".private" in rel_parts or ".obsidian" in rel_parts:
+            continue  # deep private dir + Obsidian config never served
+        if any(part.startswith(".") for part in rel_parts if part != "."):
+            continue
         files.append(p)
     return sorted(files, key=lambda x: str(x).lower())
 
@@ -40,16 +41,16 @@ def render_index(vault: Path) -> str:
         items.append(f'<li><a href="/note?path={html.escape(rel)}">{html.escape(rel)}</a></li>')
     body = "\n".join(items) or "<li><em>No notes yet</em></li>"
     return f"""<!doctype html>
-<html><head><meta charset="utf-8"><title>Grok Build Vault</title>
+<html><head><meta charset="utf-8"><title>Agent Vault</title>
 <style>
 body{{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;background:#0f1115;color:#e6e6e6}}
 a{{color:#7cb7ff}} h1{{font-size:1.4rem}} pre{{white-space:pre-wrap;background:#1a1d24;padding:1rem;border-radius:8px}}
 .muted{{color:#999;font-size:0.9rem}}
 </style></head>
 <body>
-<h1>Grok Build Vault</h1>
+<h1>Personal Agent Vault</h1>
 <p class="muted">{html.escape(str(vault))}</p>
-<p class="muted">Secrets file is never served.</p>
+<p class="muted">Secrets and <code>me/.private/</code> are never served.</p>
 <ul>{body}</ul>
 </body></html>"""
 
@@ -60,7 +61,7 @@ def render_note(vault: Path, rel: str) -> str:
         path.relative_to(vault.resolve())
     except ValueError:
         return "<h1>Forbidden</h1>"
-    if not path.is_file() or "secrets.local" in path.name:
+    if not path.is_file() or "secrets.local" in path.name.lower() or ".private" in path.parts:
         return "<h1>Not found</h1>"
     text = path.read_text(encoding="utf-8", errors="replace")
     return f"""<!doctype html>

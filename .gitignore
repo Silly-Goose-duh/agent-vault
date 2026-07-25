@@ -6,6 +6,7 @@ __pycache__/
 .env.*
 plugin-data/
 **/secrets.local.md
+**/.private/secrets.local.md
 .DS_Store
 Thumbs.db
 *.log
