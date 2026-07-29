@@ -1,11 +1,11 @@
 name: agent-vault
-version: 0.3.0
+version: 0.3.1
 description: >-
   Agent Vault — quiet personal memory for coding agents. No Obsidian required.
   After every prompt a local watcher seals secrets and facts into a markdown vault;
   /vault shows a creative dashboard (values never shown).
 author: Silly-Goose-duh
-homepage: https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin
+homepage: https://github.com/Silly-Goose-duh/agent-vault
 provides_hooks:
   - on_session_start
   - pre_llm_call

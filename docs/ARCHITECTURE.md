@@ -28,7 +28,7 @@ adds judgment without paying for a full LLM subagent on every turn.
 | `scripts/auto_capture.py` | Regex extract + file merge |
 | `scripts/vault_status.py` | Creative dashboard |
 | `agents/vault-watcher.md` | Grok subagent persona (judgment, not forced every token) |
-| `skills/grok-vault/` | Instructions for the main model |
+| `skills/agent-vault/` | Instructions for the main model |
 | `hooks/hooks.json` | Grok SessionStart / UserPromptSubmit / Stop |
 | `__init__.py` | Hermes hooks + `/vault` slash commands |
 

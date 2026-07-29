@@ -7,8 +7,7 @@ A **quiet watcher** (local script, not a chatty LLM subagent every turn) scans
 each prompt for durable facts and secrets, seals them under `me/.private/`,
 and `/vault` opens a creative dashboard of everything non-secret.
 
-> Grok Build plugin · Hermes plugin · plain CLI for any agent  
-> Repo name is historical (`grok-build-obsidian-plugin`); product is **Agent Vault**.
+> Grok Build plugin · Hermes plugin · plain CLI for any agent
 
 ## Idea (evaluated)
 
@@ -26,21 +25,21 @@ So: **hooks = automatic**, **skill/agent = smart backup**, **dashboard = human f
 ### Grok Build
 
 ```bash
-grok plugin install Silly-Goose-duh/grok-build-obsidian-plugin --trust
+grok plugin install Silly-Goose-duh/agent-vault --trust
 ```
 
 ### Hermes
 
 ```bash
-hermes plugins install Silly-Goose-duh/grok-build-obsidian-plugin --enable
+hermes plugins install Silly-Goose-duh/agent-vault --enable
 # new session / gateway restart
 ```
 
 ### Any agent (CLI)
 
 ```bash
-git clone https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin.git
-cd grok-build-obsidian-plugin
+git clone https://github.com/Silly-Goose-duh/agent-vault.git
+cd agent-vault
 python scripts/vault_cli.py init
 python scripts/quiet_watcher.py --text "My name is Ada. I prefer short answers." --verbose
 python scripts/vault_status.py

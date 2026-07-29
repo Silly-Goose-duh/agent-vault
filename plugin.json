@@ -1,13 +1,13 @@
 {
-  "name": "grok-build-obsidian",
-  "version": "0.3.0",
+  "name": "agent-vault",
+  "version": "0.3.1",
   "description": "Agent Vault: quiet personal memory for coding agents. No Obsidian required. Auto-captures facts and secrets after every prompt into a deep local markdown vault; /vault creative dashboard.",
   "author": {
     "name": "Silly-Goose-duh",
     "url": "https://github.com/Silly-Goose-duh"
   },
-  "homepage": "https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin",
-  "repository": "https://github.com/Silly-Goose-duh/grok-build-obsidian-plugin",
+  "homepage": "https://github.com/Silly-Goose-duh/agent-vault",
+  "repository": "https://github.com/Silly-Goose-duh/agent-vault",
   "license": "MIT",
   "keywords": ["vault", "memory", "personal-knowledge", "privacy", "hermes", "agent", "quiet-watcher"]
 }

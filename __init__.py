@@ -3,7 +3,7 @@
 Obsidian-free plain-markdown vault. Install once, work normally; a local
 quiet watcher scans each user prompt for durable facts + secrets.
 
-    hermes plugins install Silly-Goose-duh/grok-build-obsidian-plugin --enable
+    hermes plugins install Silly-Goose-duh/agent-vault --enable
 
 Hooks:
   - on_session_start → ensure vault

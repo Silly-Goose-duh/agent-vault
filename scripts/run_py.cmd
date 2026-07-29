@@ -18,5 +18,5 @@ where python3 >nul 2>nul && (
   python3 "%SCRIPT%" %*
   exit /b %ERRORLEVEL%
 )
-echo Python 3 not found on PATH. Install Python 3 to use grok-build-obsidian hooks. >&2
+echo Python 3 not found on PATH. Install Python 3 to use agent-vault hooks. >&2
 exit /b 0
